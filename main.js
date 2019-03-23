@@ -1,13 +1,12 @@
 //192.168.1.113
 //419099
 var fs = require('fs');
-var path = require('path');
 var io = require('socket.io')(8078);
 var conn = require('./database/database_operator');
 var checker = require('./data_operate/data_check');
 var base64transformer = require('./data_operate/base64_transorm');
 var classes = require('./data_operate/se_class');
-var alipay = require('alipay-nodejs');
+
 conn.connect();
 console.log('server start');
 
@@ -276,7 +275,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('pay', (data) => {
-
+        //TODO支付...
     });
 
     /**
@@ -523,3 +522,4 @@ io.on('connection', (socket) => {
         socket.emit('state', { state: '抱歉，您已经加入该游戏的拼团，请勿重复创建或加入' });
     }
 });
+
