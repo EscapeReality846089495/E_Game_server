@@ -1,11 +1,23 @@
 //192.168.1.113
 //419099
 var fs = require('fs');
+const AlipaySdk = require('alipay-sdk').default;
 var io = require('socket.io')(8078);
 var conn = require('./database/database_operator');
 var checker = require('./data_operate/data_check');
 var base64transformer = require('./data_operate/base64_transorm');
 var classes = require('./data_operate/se_class');
+
+const alipaySdk = new AlipaySdk({
+    gateway: 'https://openapi.alipaydev.com/gateway.do',
+    appId: '2016092600599785',
+    privateKey: fs.readFileSync('keys/应用私钥2048.txt', 'ascii'),
+    alipayPublicKey: fs.readFileSync('keys/alipay_public_key.txt', 'ascii')
+});
+var AliPayForm = require('alipay-sdk/lib/form').default;
+const formpayData = new AliPayForm();
+formpayData.setMethod('get');
+formpayData.addField('notifyUrl', 'http://47.102.201.111:8079/');
 
 conn.connect();
 console.log('server start');
@@ -149,7 +161,7 @@ io.on('connection', (socket) => {
                         socket.emit('login_state', { loginstate: '登录失败，请稍后再试' });
                     }
                     if (result.length != 0) {
-                        query_sql = 'insert into online_account value (' + result[0].No + ', \'' + result[0].user_id + '\', \'' + result[0].E_mail + '\', \'' + result[0].Phone + '\', \'' + clientIP + '\')';
+                        query_sql = 'insert into online_account value (' + result[0].No + ', \'' + result[0].user_id + '\', \'' + result[0].E_mail + '\', \'' + result[0].Phone + '\', \'' + clientIP + '\', \'' + socket + '\')';
                         conn.query(query_sql, (err) => {
                             if (err) {
                                 console.log(err);
@@ -274,8 +286,15 @@ io.on('connection', (socket) => {
         });
     });
 
+    //支付请求，发送一个支付链接
     socket.on('pay', (data) => {
         //TODO支付...
+
+    });
+
+    //团购支付请求，发送一个支付链接
+    socket.on('group_pay', (data)=>{
+
     });
 
     /**
@@ -521,5 +540,5 @@ io.on('connection', (socket) => {
     function multi_join_state(){
         socket.emit('state', { state: '抱歉，您已经加入该游戏的拼团，请勿重复创建或加入' });
     }
-});
+ });
 

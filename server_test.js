@@ -58,8 +58,8 @@ socket.on('group_get', (data)=>{
 
 //socket.emit('regist', { phone: '111', password: '12xXX@@@1113456' });
 //socket.emit('game_require', { times:1 });
-//socket.emit('login', { account:'846089495@qq.com', password:'123456' });
+socket.emit('login', { account:'846089495@qq.com', password:'123456' });
 //socket.emit('login', { account:'1111', password:'852@@qqQQ111158' });
 //socket.emit('groups_require', { game_id: 0 });
 //socket.emit('login', { account: '1159785909', password: '654321' });
-socket.emit('groups_require', { game_id: 0 });
+//socket.emit('groups_require', { game_id: 0 });

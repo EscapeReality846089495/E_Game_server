@@ -32,3 +32,4 @@
 请求加入单个拼团    join_group          { group_id }    //group_id:请求加入的拼团号码
 请求退出单个拼团    quit_group          { group_id }
 请求删除单个拼团    delete_group        { group_id }
+请求购买某个游戏    pay		       { game_id }
