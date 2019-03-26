@@ -28,6 +28,8 @@ io.on('connection', (socket) => {
      */
     socket.emit('ClientListener', { hello: 'world' });
 
+//////////////////////////// socket客户端部分 ////////////////////////////////////////////
+
     /**
      * 处理注册
      * @param data {user_id, password, user_name, sex, birth, e_mail, phone}
@@ -165,8 +167,6 @@ io.on('connection', (socket) => {
                                 socket.emit('login_state', { loginstate: '登录失败，请稍后再试' });
                             }
                             socket.emit('login_state', { loginstate: 'yes' });
-                            var s = JSON.stringify({ socket: socket });
-                            console.log(s);
                         });
                     }
                     else {
