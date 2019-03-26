@@ -6,7 +6,7 @@ socket.on('login_state', (data)=>{
     //socket.emit('create_group', { game_id: 0 });
     //socket.emit('join_group', { group_id: '0-1' });
     //socket.emit('quit_group', { group_id: '0-0' });
-    socket.emit('pay', { game_id: 0 });
+    //socket.emit('pay', { game_id: 0 });
 });
 socket.on('regist_state', (data)=>{
     console.log(data['registstate']);

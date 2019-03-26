@@ -158,13 +158,15 @@ io.on('connection', (socket) => {
                         socket.emit('login_state', { loginstate: '登录失败，请稍后再试' });
                     }
                     if (result.length != 0) {
-                        query_sql = 'insert into online_account value (' + result[0].No + ', \'' + result[0].user_id + '\', \'' + result[0].E_mail + '\', \'' + result[0].Phone + '\', \'' + clientIP + '\', \'' + socket + '\')';
+                        query_sql = 'insert into online_account value (' + result[0].No + ', \'' + result[0].user_id + '\', \'' + result[0].E_mail + '\', \'' + result[0].Phone + '\', \'' + clientIP + '\', \'' + socket.id + '\')';
                         conn.query(query_sql, (err) => {
                             if (err) {
                                 console.log(err);
                                 socket.emit('login_state', { loginstate: '登录失败，请稍后再试' });
                             }
                             socket.emit('login_state', { loginstate: 'yes' });
+                            var s = JSON.stringify({ socket: socket });
+                            console.log(s);
                         });
                     }
                     else {
@@ -605,4 +607,12 @@ io.on('connection', (socket) => {
     function multi_join_state() {
         socket.emit('state', { state: '抱歉，您已经加入该游戏的拼团，请勿重复创建或加入' });
     }
+
+
+    ////////////////////////// post服务器交互部分 //////////////////////////////////////
+    socket.on('paid', (data)=>{
+        var id = data['socket'];
+        console.log(id + 'has paid');
+        io.to(id).emit('state', { state: '购买成功！' });
+    })
 });

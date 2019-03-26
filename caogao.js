@@ -39,3 +39,17 @@ try {
 } catch (err) {
   console.log(err);
 }
+
+var io = require('socket.io')(8078);
+var i = null;
+io.on('connection', (socket)=>{
+	socket.on('login', ()=>{
+		var x = socket.handshake.address;
+		test(x);
+	});
+	function test(x){
+		socket.handshake.address = x;
+		i = socket.handshake.address;
+		socket.emit('state', { state: 'wow!' });
+	}
+});
