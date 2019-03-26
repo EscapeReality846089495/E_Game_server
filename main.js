@@ -297,7 +297,7 @@ io.on('connection', (socket) => {
                 if (err) {
                     console.log(err);
                     socket.emit('state', { state: '获取商品信息失败，请稍后再试' });
-                } else {
+                } else if(result[0]['cost'] != 0) {
                     if (result.length <= 0) {
                         socket.emit('state', { state: '商品已售磬' });
                     }else{
@@ -307,7 +307,7 @@ io.on('connection', (socket) => {
                         formData.addField('bizContent', {
                             outTradeNo: out_trade_no,//订单号
                             productCode: 'FAST_INSTANT_TRADE_PAY',//商品代码，不能修改
-                            totalAmount: '0.01',//价格，不能为0
+                            totalAmount: result[0]['cost'],//价格，不能为0
                             subject: result[0]['game_name'],//商品名称
                             body: "商品详情",//商品简介
                         });
@@ -326,6 +326,8 @@ io.on('connection', (socket) => {
                             console.log(err);
                         }
                     }
+                } else {
+                    //TODO免费商品
                 }
             });
         });
