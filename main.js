@@ -15,9 +15,6 @@ const alipaySdk = new AlipaySdk({
     alipayPublicKey: fs.readFileSync('keys/alipay_public_key.txt', 'ascii')
 });
 var AliPayForm = require('alipay-sdk/lib/form').default;
-const formpayData = new AliPayForm();
-formpayData.setMethod('get');
-formpayData.addField('notifyUrl', 'http://47.102.201.111:8079/');
 
 conn.connect();
 console.log('server start');
@@ -304,12 +301,15 @@ io.on('connection', (socket) => {
                     if (result.length <= 0) {
                         socket.emit('state', { state: '商品已售磬' });
                     }else{
+                        const formData = new AliPayForm();
+                        formData.setMethod('get');
+                        formData.addField('notifyUrl', 'http://47.102.201.111:8079/');
                         formData.addField('bizContent', {
                             outTradeNo: out_trade_no,//订单号
-                            productCode: game_id,//商品代码
-                            totalAmount: result['cost'],//价格
-                            subject: result['game_name'],//商品名称
-                            body: result['game_summary'],//商品简介
+                            productCode: 'FAST_INSTANT_TRADE_PAY',//商品代码，不能修改
+                            totalAmount: '0.01',//价格，不能为0
+                            subject: result[0]['game_name'],//商品名称
+                            body: "商品详情",//商品简介
                         });
                         try {
                             const result = alipaySdk.exec(
@@ -604,4 +604,3 @@ io.on('connection', (socket) => {
         socket.emit('state', { state: '抱歉，您已经加入该游戏的拼团，请勿重复创建或加入' });
     }
 });
-

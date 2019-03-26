@@ -17,7 +17,7 @@ formData.setMethod('get');
 
 formData.addField('notifyUrl', 'http://47.102.201.111:8079/');
 formData.addField('bizContent', {
-  outTradeNo: 'Here!',//订单号
+  outTradeNo: '1-4',//订单号
   productCode: 'FAST_INSTANT_TRADE_PAY',//商品代码
   totalAmount: '0.01',//价格
   subject: '商品',//商品名称

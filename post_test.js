@@ -29,3 +29,5 @@ http.createServer((req, res)=>{
     });
     res.end('hello world!');
 }).listen(8079);
+
+//console.log(outSolve.solve("111-100"));
