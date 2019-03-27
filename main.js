@@ -293,47 +293,88 @@ io.on('connection', (socket) => {
             console.log(v);
             var No = v['No'];
             var game_id = data['game_id'];
-            var out_trade_no = No + '-' + game_id;
-            query_sql = 'select * from game_info where game_id=' + game_id + ';';
-            conn.query(query_sql, (err, result) => {
-                if (err) {
+            var out_trade_no = '0' + '-' + No + '-' + game_id;
+            query_sql = 'select game_name, cost from game_info where game_id=' + game_id + ';';
+            conn.query(query_sql, (err, result)=>{
+                if(err){
                     console.log(err);
-                    socket.emit('state', { state: '获取商品信息失败，请稍后再试' });
-                } else if(result[0]['cost'] != 0) {
-                    if (result.length <= 0) {
-                        socket.emit('state', { state: '商品已售磬' });
-                    }else{
-                        const formData = new AliPayForm();
-                        formData.setMethod('get');
-                        formData.addField('notifyUrl', 'http://47.102.201.111:8079/');
-                        formData.addField('bizContent', {
-                            outTradeNo: out_trade_no,//订单号
-                            productCode: 'FAST_INSTANT_TRADE_PAY',//商品代码，不能修改
-                            totalAmount: result[0]['cost'],//价格，不能为0
-                            subject: result[0]['game_name'],//商品名称
-                            body: "商品详情",//商品简介
-                        });
-                        try {
-                            const result = alipaySdk.exec(
-                                'alipay.trade.page.pay',
-                                {},
-                                { formData: formData }
-                            ).then((v)=>{
-                                console.log(v);
-                                socket.emit('pay', { url: v });
-                            }, (v)=>{
-                                console.log(v);
-                            })
-                        } catch(err){
-                            console.log(err);
-                        }
-                    }
-                } else {
-                    //TODO免费商品
+                }else{
+                    pay(out_trade_no, result[0]['game_name'], result[0]['cost']);
                 }
             });
         });
     });
+
+    //创建拼团支付请求，发送一个支付链接 --创建/加入
+    socket.on('create_group_pay', (data)=>{
+        group_pay(data['group_id'], 'create');
+    });
+    socket.on('join_group_pay', (data)=>{
+        group_pay(data['group_id'], 'join');
+    });
+
+    /**
+     * socket线程使用，拼团创建并发送支付链接
+     * @param { game_id } data 团号
+     * @param {String} type 购买类型
+     */
+    function group_pay(group_id, type){
+        var flag;
+        if(type == 'create'){
+            flag = '1';
+        }else if(type == 'join'){
+            flag = '2';
+        }
+        IsOnline(
+            socket
+        ).then((v)=>{
+            console.log(v);            
+            var No = v['No'];
+            var out_trade_no = flag + '-' + No + '-' + group_id;
+            //查询组团对应游戏的价格
+            query_sql = 'select game_name, group_cost from game_info, group_buy where group_buy.game_id=game_info.game_id and group_buy.group_id=\'' + group_id + '\';';
+            conn.query(query_sql, (err, result)=>{
+                if(err){
+                    console.log(err);
+                }else{
+                    pay(out_trade_no, result[0]['game_name'] + '(拼团)', result[0]['group_cost']);
+                }
+            });
+        });
+    }
+    
+    /**
+     * socket线程调用，生成并发送一个支付链接
+     * @param {String} out_trade_no 商品订单号
+     * @param {String} game_name 游戏名称
+     * @param {Double} cost 某次订单的花费
+     */
+    function pay(out_trade_no, game_name, cost) {
+        const formData = new AliPayForm();
+        formData.setMethod('get');
+        formData.addField('notifyUrl', 'http://47.102.201.111:8079/');
+        formData.addField('bizContent', {
+            outTradeNo: out_trade_no,//订单号
+            productCode: 'FAST_INSTANT_TRADE_PAY',//商品代码，不能修改
+            totalAmount: cost,//价格，不能为0
+            subject: game_name,//商品名称
+            body: "商品详情",//商品简介
+        });
+        try {
+            alipaySdk.exec(
+                'alipay.trade.page.pay',
+                {},
+                { formData: formData }
+            ).then((v) => {
+                console.log(v);
+                socket.emit('pay', { url: v });
+            }, (v) => {
+                console.log(v);
+            });
+        } catch (err) {
+            console.log(err);
+        }
+    }
 
     /**
      * 查询是否在线
@@ -358,11 +399,6 @@ io.on('connection', (socket) => {
         });
         return p;
     }
-
-    //团购支付请求，发送一个支付链接
-    socket.on('group_pay', (data) => {
-
-    });
 
     /**
      * 反馈游戏id对应的拼团信息
@@ -539,17 +575,7 @@ io.on('connection', (socket) => {
             } else if (result.length > 0) {
                 multi_join_state();
             } else {
-                group_id = game_id + '-' + No;
-                query_sql = 'insert into group_buy value (\'' + group_id + '\', ' + No + ', ' + game_id + ', ' + 0 + ');';
-                conn.query(query_sql, (err) => {
-                    if (err) {
-                        console.log(err);
-                        socket.emit('state', { state: '创建拼团失败，请稍后再试' });
-                    } else {
-                        socket.emit('state', { state: '创建拼团成功！' });
-                        join({ group_id: group_id, No: No });
-                    }
-                });
+                group_pay(group_id, "create");
             }
         });
     }
@@ -570,7 +596,7 @@ io.on('connection', (socket) => {
                     } else if (result.length > 0) {
                         multi_join_state();
                     } else {
-                        join_opt(data);
+                        group_pay(group_id, "join");
                     }
                 });
             } else {
@@ -613,6 +639,6 @@ io.on('connection', (socket) => {
     socket.on('paid', (data)=>{
         var id = data['socket'];
         console.log(id + 'has paid');
-        io.to(id).emit('state', { state: '购买成功！' });
-    })
+        io.to(id).emit('state', { state: '支付成功！' });
+    });
 });

@@ -1,12 +1,13 @@
 var base64transformer = require('./data_operate/base64_transorm');
 var io = require('socket.io-client');
-var socket = io('ws://47.102.201.111:8078');
+var socket = io('ws://127.0.0.1:8077');
+//var socket = io('ws://47.102.201.111:8078');
 socket.on('login_state', (data)=>{
     //console.log(data['loginstate']);
     //socket.emit('create_group', { game_id: 0 });
     //socket.emit('join_group', { group_id: '0-1' });
     //socket.emit('quit_group', { group_id: '0-0' });
-    socket.emit('pay', { game_id: 0 });
+    socket.emit('join_group_pay', { group_id: '0-1' });
 });
 socket.on('regist_state', (data)=>{
     console.log(data['registstate']);
