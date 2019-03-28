@@ -1,7 +1,7 @@
 //负责支付后信息反馈
 var http = require('http');
 var qs = require('querystring');
-var conn = require('./database/database_operator');
+var conn = require('../database/database_operator');
 var fs = require('fs');
 
 var io = require('socket.io')(8077);
