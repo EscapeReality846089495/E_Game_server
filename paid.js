@@ -55,7 +55,7 @@ function solve(out_trade_no) {
  * @param { double } cost 交易花费
  */
 function buy_game(out_trade_no, No, game_id, cost){
-    var sql = 'insert into buy(out_trade_no, No, game_id, cost) value(?, ?, ?, ?);';
+    var sql = 'insert into buy(out_trade_no, No, game_id, cost, state) value(?, ?, ?, ?, 1);';
     var values = [];
     values[0] = (out_trade_no);
     values[1] = No;

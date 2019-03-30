@@ -264,7 +264,7 @@ io.on('connection', (socket) => {
             socket
         ).then((v) => {//获得在线信息
             console.log(v);
-            var No = v['No'];
+            var No = v[0]['No'];
             var game_id = data['game_id'];
             var out_trade_no = '0' + '-' + No + '-' + game_id;
             query_sql = 'select game_name, cost from game_info where game_id=' + game_id + ';';
@@ -581,25 +581,6 @@ io.on('connection', (socket) => {
             }
         );
     }
-
-
-    function quit_opt(data) {
-
-        // No = data['No'];
-        // group_id = data['group_id'];
-        // query_sql = 'delete from join_group where No=' + No + ' and group_id=\'' + group_id + '\';';
-        // query_sql += 'update group_buy set user_count=user_count-1 where group_id=\'' + group_id + '\';';
-        // query_sql += 'delete from group_buy where user_count=0;';
-        // query_sql += 'delete from group_buy where group_owner=' + No + ' and group_id=\'' + group_id + '\';';
-        // conn.query(query_sql, (err) => {
-        //     if (err) {
-        //         console.log(err);
-        //         socket.emit('state', { state: '退出拼团失败，请稍后再试' });
-        //     } else {
-        //         socket.emit('state', { state: '退出拼团成功！' });
-        //     }
-        // });
-    }
     function create(data) {
         No = data['No'];
         game_id = data['game_id'];
@@ -641,23 +622,6 @@ io.on('connection', (socket) => {
             }
         });
     }
-    function join_opt(data) {
-        group_id = data['group_id'];
-        No = data['No'];
-        query_sql = 'insert into join_group value (\'' + group_id + '\', ' + No + ', \'' + new Date().toLocaleString() + '\');';
-        query_sql += 'update group_buy set user_count=user_count+1 where group_id=\'' + group_id + '\';';
-        conn.query(query_sql, (err) => {
-            if (err) {
-                console.log(err);
-                socket.emit('state', { state: '加入拼团失败' });
-                if (isLeader) {
-                    delete_group(group_id);
-                }
-            } else {
-                socket.emit('state', { state: '加入拼团成功' });
-            }
-        });
-    }
     /**
      * 提示查询拼团状态失败
      */
@@ -671,6 +635,130 @@ io.on('connection', (socket) => {
         socket.emit('state', { state: '抱歉，您已经加入该游戏的拼团，请勿重复创建或加入' });
     }
 
+    socket.on('main_search', (data)=>{
+        var search_key = data['search'];
+        var real_key = '%';
+        for (var i = 0;i < search_key.length;i++){
+            real_key += search_key[i];
+            real_key += '%';
+        }
+        var sql = 'select * from game_info where game_name like ?;';
+        var values = [];
+        values[0] = real_key;
+        conn1.doQuery(
+            sql,
+            values
+        ).then(
+            (v)=>{
+                console.log(v);
+                //构造json
+                var game_count = v.length;
+                var games = [];
+                for (var i = 0;i < game_count;i++){
+                    games[i] = new classes.gamepart_info(v[i]);
+                }
+                // var game_p = new classes.game_part({ game_count: game_count.toString(), game_p: games });
+                // console.log(game_p);
+                socket.emit('rearch_response', { game_count: game_count.toString(), game_p: games });
+            },
+            (v)=>{
+                if(v == null){
+                    socket.emit('rearch_response', { game_count: '0' });
+                }else{
+                    socket.emit('state', { state: '查询失败，请稍后再试' });
+                }
+            }
+        )
+    });
+
+    socket.on('user_require', ()=>{
+        IsOnline(
+            socket
+        ).then(
+            (v)=>{
+                var No = v[0]['No'];
+                var sql = 'select * from user_account where No=?;';
+                var values = [];
+                values[0] = No;
+                conn1.doQuery(
+                    sql,
+                    values
+                ).then(
+                    (v)=>{
+                        var user_id = v[0]['user_id'];
+                        var user_name = v[0]['username'];
+                        var user_pict = null;
+                        if(v[0]['head_pict'] != null){
+                            user_pict = base64transformer.anyToBase64(v[0]['head_pict']);
+                        }
+                        var user_password = "";
+                        var user_birth = v[0]['birth'].toLocaleString();
+                        var user_sex;
+                        if(v[0]['sex'] == 0){
+                            user_sex = false;
+                        } else {
+                            user_sex = true;
+                        }
+                        var user_contents = v[0]['user_contents'];
+                        var game_counts;
+                        var games = [];
+                        sql = 'select * from buy, game_info where buy.game_id=game_info.game_id and No=? and state<>-1;';
+                        values = [];
+                        values[0] = No;
+                        conn1.doQuery(
+                            sql,
+                            values
+                        ).then(
+                            (v)=>{
+                                game_counts = v.length;
+                                for(var i = 0;i < game_counts;i++){
+                                    v[i]['buy_time'] = v[i]['datetime'].toLocaleString();
+                                    v[i]['isbought'] = true;
+                                    if(v[i]['state'] == 0){
+                                        v[i]['isbought'] = false;
+                                    }
+                                    games[i] = new classes.games_info(v[i]);
+                                }
+                                var tmp = {
+                                    user_id: user_id,
+                                    user_name: user_name,
+                                    user_pict: user_pict,
+                                    user_password: user_password,
+                                    user_birth: user_birth,
+                                    user_sex: user_sex,
+                                    user_contents: user_contents,
+                                    game_counts: game_counts,
+                                    games: games
+                                }
+                                //tmp = JSON.stringify(tmp);
+                                console.log(tmp);
+                                socket.emit('user_info', {
+                                    user_id: user_id, 
+                                    user_name: user_name,
+                                    user_pict: user_pict,
+                                    user_password: user_password,
+                                    user_birth: user_birth,
+                                    user_sex: user_sex.toString(),
+                                    user_contents: user_contents,
+                                    game_counts: game_counts,
+                                    games: games
+                                });
+                            },
+                            (v)=>{
+                                socket.emit('state', { state: '获取用户信息失败，请稍后再试' });
+                            }
+                        )
+                    },
+                    (v)=>{
+
+                    }
+                )
+            },
+            (v)=>{
+
+            }
+        )
+    })
 
     ////////////////////////// post服务器交互部分 //////////////////////////////////////
     socket.on('game_paid', (data) => {
@@ -746,23 +834,3 @@ function payback(out_trade_no, cost) {
         console.log(err);
     }
 }
-
-// var sql = 'insert into buy(out_trade_no, No, game_id, group_id, cost, state) value(?, 1, 5, ?, 0.1, 0);';
-// var values = [];
-// values[0] = ('2-1-5-5');
-// values[1] = ('5-5');
-// sql += 'insert into join_group(group_id, No) value(?, 1);';
-// values[2] = ('5-5');
-// sql += 'update group_buy set user_count=user_count-1 where group_id=?;';
-// values[3] = ('5-5');
-// conn1.doUpdate(
-//     sql,
-//     values
-// ).then(
-//     (v)=>{
-//         console.log('测试数据添加成功');
-//     },
-//     (v)=>{
-//     }
-// )
-

@@ -72,4 +72,54 @@ class userInfo {
     }
 }
 
-module.exports = { adInfo, gameInfo, groupInfo };
+class gamepart_info{
+    constructor(data){
+        this.game_id = data['game_id'];
+        this.game_name = data['game_name'];
+        this.type_Moba = data['type_Moba'];
+        this.type_CardAndChess = data['type_CardAndChess'];
+        if(data['game_pict'] != null){
+            var pict = base64transformer.anyToBase64(data['game_pict']);
+        }
+        this.game_pict = pict;
+    }
+}
+class game_part{
+    constructor(data){
+        this.game_count = data['game_count'];
+        this.game_p = data['game_p'];
+    }
+}
+
+class user_information{
+    constructor(data){
+        this.user_id = data['user_id'];
+        this.username = data['username'];
+        if(data['user_pict'] != null){
+            this.user_pict = base64transformer.anyToBase64(data['user_pict']);
+        }
+        this.user_password = "";
+        this.user_birth = data['birth'];
+        if(data['sex'] == 0){
+            this.user_sex = false;
+        }else{
+            this.user_sex = true;
+        }
+        this.user_contents = data['user_contents'];
+        this.game_counts;
+    }
+}
+
+class games_info{
+    constructor(data){
+        this.game_id = data['game_id'];
+        this.game_name = data['game_name'];
+        if(data['game_pict'] != null){
+            this.game_pict = base64transformer.anyToBase64(data['game_pict']);
+        }
+        this.game_auth = data['game_auth'];
+        this.buy_time = data['buy_time'];
+        this.isbought = data['isbought'];
+    }
+}
+module.exports = { adInfo, gameInfo, groupInfo, gamepart_info, game_part, user_information, games_info };
