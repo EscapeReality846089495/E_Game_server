@@ -5,14 +5,14 @@ var conn = require('./database/execute');
 socket.on('post', (data)=>{
     console.log(data);
     var out_trade_no = data['data']['out_trade_no'];
-
+    var cost = data['data']['total_amount'];
     var nodata = solve(out_trade_no);//解析订单号
     if(nodata.flag == 0){//购买 flag-No-game_id
-        buy_game(out_trade_no, nodata.No, nodata.good_id);
+        buy_game(out_trade_no, nodata.No, nodata.good_id, cost);
     }else if(nodata.flag == 1){//创建拼团 flag-No-game_id
-        create_group(out_trade_no, nodata.No, nodata.good_id);
+        create_group(out_trade_no, nodata.No, nodata.good_id, cost);
     }else if(nodata.flag == 2){//加入拼团 flag-No-group_id
-        join_group_paid(out_trade_no, nodata.No, nodata.good_id);
+        join_group_paid(out_trade_no, nodata.No, nodata.good_id, cost);
     }
 });
 
@@ -36,10 +36,14 @@ function solve(out_trade_no) {
 
     str1 = out_trade_no.slice(0, pos[0]);           //flag
     str2 = out_trade_no.slice(pos[0] + 1, pos[1]);  //No
-    str3 = out_trade_no.slice(pos[1] + 1, out_trade_no.length);//game_id / group_id
-
     str1 = parseInt(str1);
     str2 = parseInt(str2);
+    if(str1 == 0){
+        str3 = out_trade_no.slice(pos[1] + 1, pos[2]);//game_id
+    } else if(str1 == 1 || str1 == 2){
+        str3 = out_trade_no.slice(pos[1] + 1, pos[3]);//group_id
+    }
+
     return { flag: str1, No: str2, good_id: str3 };
 }
 
@@ -48,13 +52,15 @@ function solve(out_trade_no) {
  * @param { String } out_trade_no 订单号
  * @param { int } No 用户编号
  * @param { int } game_id 游戏编号
+ * @param { double } cost 交易花费
  */
-function buy_game(out_trade_no, No, game_id){
-    var sql = 'insert into buy(out_trade_no, No, game_id) value(?, ?, ?);';
+function buy_game(out_trade_no, No, game_id, cost){
+    var sql = 'insert into buy(out_trade_no, No, game_id, cost) value(?, ?, ?, ?);';
     var values = [];
-    values[0] = conn.tosqlString(out_trade_no);
+    values[0] = (out_trade_no);
     values[1] = No;
     values[2] = game_id;
+    values[3] = cost;
 
     // sql += 'insert into own value (?, ?);';
     // values[3] = No;
@@ -83,23 +89,26 @@ function buy_game(out_trade_no, No, game_id){
  * @param { String } out_trade_no 订单号
  * @param { int } No 用户编号
  * @param { String } group_id 拼团编号
+ * @param { double } cost 交易花费
  */
-function join_group_paid(out_trade_no, No, group_id){
+function join_group_paid(out_trade_no, No, group_id, cost){
     var sql = 'select * from group_buy where group_id=?;';
     var values = [];
-    values[0] = conn.tosqlString(group_id);
+    values[0] = (group_id);
     conn.doQuery(//查询游戏id
         sql,
         values
     ).then(
         (v)=>{
             game_id = v[0]['game_id'];
-            var sql = 'insert into buy(out_trade_no, No, game_id, group_id) value(?, ?, ?, ?);'
+            var sql = 'insert into buy(out_trade_no, No, game_id, group_id, cost) value(?, ?, ?, ?, ?);'
             var values = [];
-            values[0] = conn.tosqlString(out_trade_no);
+            values[0] = (out_trade_no);
             values[1] = No;
             values[2] = game_id;
-            values[3] = conn.tosqlString(group_id);
+            values[3] = (group_id);
+            values[4] = cost;
+
             conn.doUpdate(//插入购买记录
                 sql,
                 values
@@ -127,10 +136,10 @@ function join_group_paid(out_trade_no, No, group_id){
 function join_group(No, group_id){
     var sql = 'insert into join_group(group_id, No) value (?, ?);';
     var values = [];
-    values[0] = conn.tosqlString(group_id);
+    values[0] = (group_id);
     values[1] = No;
     sql += 'update group_buy set user_count=user_count+1 where group_id=?;';
-    values[2] = conn.tosqlString(group_id);
+    values[2] = (group_id);
 
     conn.doUpdate(
         sql,
@@ -153,19 +162,21 @@ function join_group(No, group_id){
  * @param { String } out_trade_no 订单号
  * @param { int } No 用户编号
  * @param { int } game_id 游戏编号
+ * @param { double } cost 交易花费
  */
-function create_group(out_trade_no, No, game_id){
+function create_group(out_trade_no, No, game_id, cost){
     var group_id = No + '-' + game_id;
-    var sql = 'insert into buy(out_trade_no, No, game_id, group_id) value (?, ?, ?, ?);';
+    var sql = 'insert into buy(out_trade_no, No, game_id, group_id, cost) value (?, ?, ?, ?, ?);';
     var values = [];
-    values[0] = conn.tosqlString(out_trade_no);
+    values[0] = (out_trade_no);
     values[1] = No;
     values[2] = game_id;
-    values[3] = conn.tosqlString(group_id);
+    values[3] = (group_id);
+    values[4] = cost;
     sql += 'insert into group_buy value (?, ?, ?, 0)';
-    values[4] = conn.tosqlString(group_id);
-    values[5] = No;
-    values[6] = game_id;
+    values[5] = (group_id);
+    values[6] = No;
+    values[7] = game_id;
 
     conn.doUpdate(
         sql,
@@ -236,7 +247,7 @@ function getMainServerSocket(){
 function tryToFinishGroup(group_id){
     var sql = 'select * from join_group, group_buy where join_group.group_id=group_buy.group_id and group_buy.group_id=?;';
     var values = [];
-    values[0] = conn.tosqlString(group_id);
+    values[0] = (group_id);
     conn.doQuery(
         sql,
         values
@@ -254,7 +265,7 @@ function tryToFinishGroup(group_id){
                 //删除拼团信息
                 sql = 'delete from group_buy where group_id=?;';
                 values = [];
-                values[0] = conn.tosqlString(group_id);
+                values[0] = (group_id);
                 conn.doUpdate(
                     sql,
                     values
@@ -279,3 +290,5 @@ function tryToFinishGroup(group_id){
 // join_group(2, '0-1');
 // join_group(4, '0-1');
 // join_group(5, '0-1');
+
+//console.log(solve('1-1-1' + '-' + new Date().toLocaleString()));

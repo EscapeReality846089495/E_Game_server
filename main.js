@@ -29,7 +29,7 @@ io.on('connection', (socket) => {
      */
     socket.emit('ClientListener', { hello: 'world' });
 
-//////////////////////////// socket客户端部分 ////////////////////////////////////////////
+    //////////////////////////// socket客户端部分 ////////////////////////////////////////////
 
     /**
      * 处理注册
@@ -237,34 +237,6 @@ io.on('connection', (socket) => {
         });
     });
 
-    //deal with purchase require, send the statement to UI, client event:purchase_state
-    /**
-     * 购买游戏，将游戏加入库
-     */
-    socket.on('purchase', (data) => {
-        var user_addr = socket.handshake.address;
-        query_sql = 'select No from online_account where IP_addr=' + '\'' + user_addr + '\'';
-        conn.query(query_sql, (err, result) => {
-            if (err) {
-                console.log(err)
-            } else if (result == undefined) {
-                socket.emit('error', { error: '你已从服务器断开，请重新登录' });
-            } else {
-                //get No
-                No = result[0]['No'];
-                query_sql = 'insert into users_assets value (' + No + ', ' + data['game_id'] + ', \'' + new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString() + '\');';
-                conn.query(query_sql, (err) => {
-                    if (err) {
-                        console.log(err);
-                        socket.emit('purchase_state', { purchasestate: '购买失败，请稍后再试' });
-                    } else {
-                        socket.emit('purchase_state', { purchasestate: '购买成功！' });
-                    }
-                });
-            }
-        });
-    });
-
     //deal with advertisement require, send the require statement or advertisements'informations to UI, client event:ad_get
     /**
      * 发送广告内容
@@ -296,21 +268,23 @@ io.on('connection', (socket) => {
             var game_id = data['game_id'];
             var out_trade_no = '0' + '-' + No + '-' + game_id;
             query_sql = 'select game_name, cost from game_info where game_id=' + game_id + ';';
-            conn.query(query_sql, (err, result)=>{
-                if(err){
+            conn.query(query_sql, (err, result) => {
+                if (err) {
                     console.log(err);
-                }else{
+                } else {
                     pay(out_trade_no, result[0]['game_name'], result[0]['cost']);
                 }
             });
         });
     });
 
-    //创建拼团支付请求，发送一个支付链接 --创建/加入
-    socket.on('create_group_pay', (data)=>{
+    //创建拼团支付请求，发送一个支付链接
+    socket.on('create_group_pay', (data) => {
         group_pay(data['game_id'], 'create');
     });
-    socket.on('join_group_pay', (data)=>{
+
+    //加入拼团支付请求，发送一个支付链接
+    socket.on('join_group_pay', (data) => {
         group_pay(data['group_id'], 'join');
     });
 
@@ -319,13 +293,13 @@ io.on('connection', (socket) => {
      * @param { game_id/group_id } data 商品号：游戏id或团号
      * @param {String} type 购买类型
      */
-    function group_pay(good_id, type){
+    function group_pay(good_id, type) {
         IsOnline(
             socket
         ).then(
-            (v)=>{
+            (v) => {
                 var No = v[0]['No'];
-                if(type == 'create'){//创建拼团订单，订单号 flag-No-game_id
+                if (type == 'create') {//创建拼团订单，订单号 flag-No-game_id
                     var game_id = good_id;
                     var out_trade_no = '1-' + No + '-' + game_id;
                     var sql = 'select * from game_info where game_id=?;';
@@ -335,32 +309,32 @@ io.on('connection', (socket) => {
                         sql,
                         values
                     ).then(
-                        (v)=>{
+                        (v) => {
                             var game_name = v[0]['game_name'];
                             var cost = v[0]['group_cost'];
                             pay(out_trade_no, game_name, cost);
                         },
-                        (v)=>{
+                        (v) => {
                             console.log(No + ' 对游戏 ' + game_id + ' 的拼团创建失败');
                             socket.emit('state', { state: '创建拼团失败' });
                         }
                     )
-                }else if(type == 'join'){//参与拼团订单, 订单号 flag-No-group_id
+                } else if (type == 'join') {//参与拼团订单, 订单号 flag-No-group_id
                     var group_id = good_id;
                     var out_trade_no = '2-' + No + '-' + group_id;
                     var sql = 'select game_name, group_cost from group_buy, game_info where group_buy.game_id=game_info.game_id and group_id=?;';
                     var values = [];
-                    values[0] = conn1.tosqlString(group_id);
+                    values[0] = (group_id);
                     conn1.doQuery(
                         sql,
                         values
                     ).then(
-                        (v)=>{
+                        (v) => {
                             var game_name = v[0]['game_name'];
                             var group_cost = v[0]['group_cost'];
                             pay(out_trade_no, game_name, group_cost);
                         },
-                        (v)=>{
+                        (v) => {
                             console.log(v);
                             console.log(No + ' 对拼团号为 ' + group_id + ' 的拼团加入失败');
                             socket.emit('state', { state: '加入拼团失败' });
@@ -368,12 +342,12 @@ io.on('connection', (socket) => {
                     )
                 }
             },
-            (v)=>{
+            (v) => {
 
             }
         );
     }
-    
+
     /**
      * socket线程调用，生成并发送一个支付链接
      * @param {String} out_trade_no 商品订单号
@@ -381,6 +355,7 @@ io.on('connection', (socket) => {
      * @param {Double} cost 某次订单的花费
      */
     function pay(out_trade_no, game_name, cost) {
+        out_trade_no += '-' + new Date().toLocaleString();
         const formData = new AliPayForm();
         formData.setMethod('get');
         formData.addField('notifyUrl', 'http://47.102.201.111:8079/');
@@ -406,6 +381,7 @@ io.on('connection', (socket) => {
             console.log(err);
         }
     }
+
 
     /**
      * 查询是否在线
@@ -563,35 +539,66 @@ io.on('connection', (socket) => {
         })
     }
     function quit(data) {
-        No = data['No'];
-        group_id = data['group_id'];
-        query_sql = 'select * from join_group where group_id=\'' + group_id + '\' and No=' + No + ';';
-        conn.query(query_sql, (err, result) => {
-            if (err) {
-                console.log(err);
-                query_fail_state();
-            } else if (result.length <= 0) {
-                socket.emit('state', { state: '抱歉，您未加入该拼团，无法退出拼团' });
-            } else {
-                quit_opt(data);
+        var No = data['No'];
+        var group_id = data['group_id'];
+        var sql = 'select * from buy where No=? and group_id=? and state=0;';//寻找活期的指定的拼团订单
+        var values = []
+        values[0] = No;
+        values[1] = (group_id);
+        conn1.doQuery(
+            sql,
+            values
+        ).then(
+            (v) => {
+                var out_trade_no = v[0]['out_trade_no'];
+                var cost = v[0]['cost'];
+                payback(out_trade_no, cost);
+                //异步进行数据库更新
+                sql = 'update buy set state=-1 where out_trade_no=? and state=0;';//使订单失效
+                values = [];
+                values[0] = (out_trade_no);
+                sql += 'delete from join_group where No=? and group_id=?;';//退出拼团
+                values[1] = No;
+                values[2] = (group_id);
+                sql += 'update group_buy set user_count=user_count-1 where group_id=?;'//更新拼团人数
+                values[3] = (group_id);
+                conn1.doUpdate(
+                    sql,
+                    values
+                ).then(
+                    (v) => {
+                        socket.emit('state', { state: '退出拼团成功，退款将原路返回到您的账户' });
+                        console.log('用户 ' + No + ' 退出拼团 ' + group_id + ' 成功');
+                    },
+                    (v) => {
+                        socket.emit('state', { state: '退出拼团失败' });
+                        console.log('用户 ' + No + ' 退出拼团 ' + group_id + ' 失败');
+                    }
+                );
+
+            }, (v) => {
+
             }
-        });
+        );
     }
+
+
     function quit_opt(data) {
-        No = data['No'];
-        group_id = data['group_id'];
-        query_sql = 'delete from join_group where No=' + No + ' and group_id=\'' + group_id + '\';';
-        query_sql += 'update group_buy set user_count=user_count-1 where group_id=\'' + group_id + '\';';
-        query_sql += 'delete from group_buy where user_count=0;';
-        query_sql += 'delete from group_buy where group_owner=' + No + ' and group_id=\'' + group_id + '\';';
-        conn.query(query_sql, (err) => {
-            if (err) {
-                console.log(err);
-                socket.emit('state', { state: '退出拼团失败，请稍后再试' });
-            } else {
-                socket.emit('state', { state: '退出拼团成功！' });
-            }
-        });
+
+        // No = data['No'];
+        // group_id = data['group_id'];
+        // query_sql = 'delete from join_group where No=' + No + ' and group_id=\'' + group_id + '\';';
+        // query_sql += 'update group_buy set user_count=user_count-1 where group_id=\'' + group_id + '\';';
+        // query_sql += 'delete from group_buy where user_count=0;';
+        // query_sql += 'delete from group_buy where group_owner=' + No + ' and group_id=\'' + group_id + '\';';
+        // conn.query(query_sql, (err) => {
+        //     if (err) {
+        //         console.log(err);
+        //         socket.emit('state', { state: '退出拼团失败，请稍后再试' });
+        //     } else {
+        //         socket.emit('state', { state: '退出拼团成功！' });
+        //     }
+        // });
     }
     function create(data) {
         No = data['No'];
@@ -666,19 +673,19 @@ io.on('connection', (socket) => {
 
 
     ////////////////////////// post服务器交互部分 //////////////////////////////////////
-    socket.on('game_paid', (data)=>{
+    socket.on('game_paid', (data) => {
         send_state(data['No'], '购买成功！');
     });
 
-    socket.on('create_group_paid', (data)=>{
+    socket.on('create_group_paid', (data) => {
         send_state(data['No'], '创建拼团成功！');
     });
 
-    socket.on('join_group_paid', (data)=>{
+    socket.on('join_group_paid', (data) => {
         send_state(data['No'], '加入拼团成功！');
     });
 
-    socket.on('game_hasget', (data)=>{
+    socket.on('game_hasget', (data) => {
         send_state(data['No'], '游戏购买成功！快去体验吧～');
     });
 
@@ -687,7 +694,7 @@ io.on('connection', (socket) => {
      * @param {int} No 用户编号
      * @param {String} message 要发送的信息
      */
-    function send_state(No, message){
+    function send_state(No, message) {
         var No = No;
         var sql = 'select * from online_account where No=?;';
         var values = [];
@@ -696,13 +703,66 @@ io.on('connection', (socket) => {
             sql,
             values
         ).then(
-            (v)=>{
+            (v) => {
                 var id = v[0]['socket'];
                 io.to(id).emit('state', { state: message });
             },
-            (v)=>{
+            (v) => {
                 console.log(v);
             }
         );
     }
 });
+
+/**
+ * 订单退款
+ * @param { String } out_trade_no 订单号
+ * @param { Float } cost 退款金额
+ */
+function payback(out_trade_no, cost) {
+    //退款
+    var formData = new AliPayForm();
+    formData.setMethod('get');
+
+    formData.addField('notifyUrl', 'http://47.102.201.111:8079/');
+    formData.addField('bizContent', {
+        outTradeNo: out_trade_no,//订单号
+        refund_amount: cost//退款金额
+    });
+
+    try {
+        const result = alipaySdk.exec(
+            'alipay.trade.refund',
+            {},
+            { formData: formData },
+        ).then((v) => {
+            console.log(v);
+        }, (v) => {
+            console.log(v);
+        });
+        // result 为可以跳转到支付链接的 url
+        console.log(result);
+    } catch (err) {
+        console.log(err);
+    }
+}
+
+// var sql = 'insert into buy(out_trade_no, No, game_id, group_id, cost, state) value(?, 1, 5, ?, 0.1, 0);';
+// var values = [];
+// values[0] = ('2-1-5-5');
+// values[1] = ('5-5');
+// sql += 'insert into join_group(group_id, No) value(?, 1);';
+// values[2] = ('5-5');
+// sql += 'update group_buy set user_count=user_count-1 where group_id=?;';
+// values[3] = ('5-5');
+// conn1.doUpdate(
+//     sql,
+//     values
+// ).then(
+//     (v)=>{
+//         console.log('测试数据添加成功');
+//     },
+//     (v)=>{
+//     }
+// )
+

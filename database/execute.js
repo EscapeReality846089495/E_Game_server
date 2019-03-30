@@ -49,6 +49,9 @@ function doUpdate(sql, values){
  */
 function addValues(sql, values){
     for(var i = 0;i < values.length;i++){
+        if(typeof(values[i]) == "string"){
+            values[i] = tosqlString(values[i]);
+        }
         sql = sql.replace('?', values[i]);
     }
     return sql;
