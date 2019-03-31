@@ -74,7 +74,20 @@
     public Boolean isbought;//是否购买，true为已经购买，false为还未成功购买
 
 }
-
+9.发送商店内所有游戏的信息 store_response {stirng game_count,game[] game}
+//game类型即为之前获取广告详情时候的信息相同
+game{
+    public string game_id;
+    public string game_name;
+    public string game_pict;
+    public string game_auth;
+    public string publish_date;
+    public string cost;
+    public string group_cost;
+    public string type_Moba;
+    public string type_CardAndChess;
+    public string game_summary;
+    }
 
 //客户端 emit-> 服务器
 作用    事件名                  数据
@@ -90,4 +103,5 @@
 10.请求删除单个拼团    delete_group        { group_id }
 11.请求购买某个游戏    pay		       { game_id }
 12.在主页上请求查询一个游戏  main_search         { search } //search:用户输入在查询框输入的内容
-13.请求进入“我的”页面 user_require {}
+13.请求进入“我的”页面 user_require         {}
+14.请求进入“商店”页面 store_require         {}
