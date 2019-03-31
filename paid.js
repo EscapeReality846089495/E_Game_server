@@ -1,6 +1,7 @@
 //此服务器用于解决支付完成后处理post到的信息并做数据库处理，然后反馈给主服务器
 var io = require('socket.io-client');
-var socket = io.connect('ws://47.102.201.111:8077');
+//var socket = io.connect('ws://47.102.201.111:8077');
+var socket = io.connect('ws://localhost:8077');
 var conn = require('./database/execute');
 socket.on('post', (data)=>{
     console.log(data);

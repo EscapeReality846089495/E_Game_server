@@ -14,7 +14,7 @@ function doQuery(sql, values){
                 console.log(err);
                 rej(undefined);
             }else if(result.length <= 0){
-                rej(null);
+                rej(0);
             }else{
                 res(result);
             }

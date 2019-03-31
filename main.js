@@ -291,7 +291,7 @@ io.on('connection', (socket) => {
     /**
      * socket线程使用，拼团创建并发送支付链接
      * @param { game_id/group_id } data 商品号：游戏id或团号
-     * @param {String} type 购买类型
+     * @param {String} type 购买类型 'join'/'create'
      */
     function group_pay(good_id, type) {
         IsOnline(
@@ -312,7 +312,7 @@ io.on('connection', (socket) => {
                         (v) => {
                             var game_name = v[0]['game_name'];
                             var cost = v[0]['group_cost'];
-                            pay(out_trade_no, game_name, cost);
+                            pay(out_trade_no, game_name + '（拼团发起）', cost);
                         },
                         (v) => {
                             console.log(No + ' 对游戏 ' + game_id + ' 的拼团创建失败');
@@ -332,7 +332,7 @@ io.on('connection', (socket) => {
                         (v) => {
                             var game_name = v[0]['game_name'];
                             var group_cost = v[0]['group_cost'];
-                            pay(out_trade_no, game_name, group_cost);
+                            pay(out_trade_no, game_name + '（拼团加入）', group_cost);
                         },
                         (v) => {
                             console.log(v);
@@ -429,115 +429,236 @@ io.on('connection', (socket) => {
         });
     });
 
-    /**
-     * @param data
-     * {
-     *  game_id;
-     * }
-     */
     socket.on('create_group', (data) => {
-        group_operation('create', data);
+
+        IsOnline(
+            socket
+        ).then(
+            (v) => {
+                var No = v[0]['No'];
+                var game_id = data['game_id'];
+                var sql = 'select * from game_info where game_id=?;';
+                var values = [];
+                values[0] = game_id;
+                conn1.doQuery(
+                    sql,
+                    values
+                ).then(
+                    (v) => {
+                        //游戏信息存在                
+                        sql = 'select * from own where game_id=? and No=?;';
+                        values = [];
+                        values[0] = game_id;
+                        values[1] = No;
+                        //查询用户是否已拥有该游戏
+                        conn1.doQuery(
+                            sql,
+                            values
+                        ).then(
+                            (v) => {
+                                //查询结果不为空，则视为拥有该游戏，不能够再次创建拼团
+                                socket.emit('state', { state: '您已拥有该游戏，不能再创建该游戏的拼团' });
+                            },
+                            (v) => {
+                                if (v == undefined) {
+                                    socket.emit('state', { state: '查询游戏库失败，请稍后再试' });
+                                } else if (v == 0) {
+                                    //查询是否正在该游戏的拼团中
+                                    sql = 'select * from group_buy, join_group where group_buy.group_id=join_group.group_id and No=? and game_id=?;';
+                                    values = [];
+                                    values[0] = No;
+                                    values[1] = game_id;
+                                    conn1.doQuery(
+                                        sql,
+                                        values
+                                    ).then(
+                                        (v) => {
+                                            socket.emit('state', { state: '您正在进行该游戏的拼团，不能再创建该游戏的拼团' });
+                                        },
+                                        (v) => {
+                                            if (v == undefined) {
+                                                socket.emit('state', { state: '查询拼团信息失败，请稍后再试' });
+                                            } else if (v == 0) {
+                                                //查询结果为空，并未拥有该游戏，可创建拼团
+                                                //拉起拼团支付
+                                                group_pay(game_id, 'create');
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        );
+
+                    },
+                    (v)=>{
+                        if(v == undefined){
+                            socket.emit('state', { state: '查询游戏信息失败，请稍后再试' });
+                        } else if(v == 0){
+                            socket.emit('state', { state: '该游戏不存在' });
+                        }
+                    }
+                )
+            },
+            (v)=>{
+                socket.emit('state', { state: '登录状态异常，请重新登录' });
+            }
+        )
     });
-    /**
-     * @param data
-     * {
-     *  group_id;
-     * }
-     */
+
     socket.on('join_group', (data) => {
-        group_operation('join', data);
+        IsOnline(
+            socket
+        ).then(
+            (v)=>{
+                var No = v[0]['No'];
+                var group_id = data['group_id'];
+                var sql = 'select * from group_buy where group_id=?;';
+                var values = [];
+                values[0] = group_id;
+                //查询拼团是否有效
+                conn1.doQuery(
+                    sql,
+                    values
+                ).then(
+                    (v)=>{
+                        var game_id = v[0]['game_id'];
+                        sql = 'select * from join_group, group_buy where join_group.group_id=group_buy.group_id and No=? and game_id=?;';
+                        values = [];
+                        values[0] = No;
+                        values[1] = game_id;
+                        conn1.doQuery(
+                            sql,
+                            values
+                        ).then(
+                            (v)=>{
+                                socket.emit('state', { state: '您已加入该游戏的拼团，请勿重复加入' });
+                            },
+                            (v)=>{
+                                if(v == undefined){
+                                    socket.emit('state', { state: '查询信息失败，请稍后再试' });
+                                } else if (v == 0){
+                                    sql = 'select * from own where No=? and game_id=?;';
+                                    values = [];
+                                    values[0] = No;
+                                    values[1] = game_id;
+                                    conn1.doQuery(
+                                        sql,
+                                        values
+                                    ).then(
+                                        (v)=>{
+                                            socket.emit('state', { state: '您已拥有该游戏，不能再加入该游戏的拼团' });
+                                        },
+                                        (v)=>{
+                                            if(v == undefined){
+                                                socket.emit('state', { state: '查询游戏库信息失败，请稍后再试' });
+                                            } else if(v == 0){
+                                                group_pay(group_id, 'join');
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        )
+                    },
+                    (v)=>{
+                        if(v == undefined){
+                            socket.emit('state', { state: '查询订单失败，请稍后再试' });
+                        } else if (v == 0){
+                            socket.emit('state', { state: '订单已失效' });
+                        }
+                    }
+                )
+            },
+            (v)=>{
+                socket.emit('state', { state: '登录状态异常，请重新登录' });
+            }
+        )
     });
-    /**
-     * @param data
-     * {
-     *  group_id;
-     * }
-     */
-    socket.on('quit_group', (data) => {
-        group_operation('quit', data);
-    });
-    /**
-     * @param data
-     * {
-     *  group_id;
-     * }
-     */
-    socket.on('delete_group', (data) => {
-        group_operation('delete', data);
+
+    //处理退款请求（创建拼团退款、加入拼团退款）
+    socket.on('payback', (data)=>{
+        IsOnline(
+            socket
+        ).then(
+            (v)=>{
+                var No = v[0]['No'];
+                var group_id = data['group_id'];
+                var sql = 'select * from group_buy where group_id=? and group_owner=?;';
+                var values = [];
+                values[0] = group_id;
+                values[1] = No;
+                conn1.doQuery(
+                    sql,
+                    values
+                ).then(
+                    (v)=>{
+                        del({ No: No, group_id: group_id });
+                    },
+                    (v)=>{
+                        if(v == 0){
+                            quit({ No: No, group_id: group_id });
+                        } else {
+                            socket.emit('state', { state: '订单查询失败，请稍后再试' });
+                        }
+                    }
+                )
+            },
+            (v)=>{
+                socket.emit('登录状态异常，请重新登录');
+            }
+        )
     });
 
     /**
-     * 分类型操作拼团
-     * @param {String} operation {'create', 'join', 'quit', 'delete'}
-     * @param {Map} data 
+     * 为指定用户删除拼团处理退款
+     * @param { No: int, group_id: string} data 退款信息
      */
-    function group_operation(operation, data) {
-        query_sql = 'select * from online_account where IP_addr=\'' + socket.handshake.address + '\';';
-        conn.query(query_sql, (err, result) => {
-            if (err) {
-                console.log(err);
-                socket.emit('state', { state: '登录状态异常，请稍后再试' });
-            } else {
-                data['No'] = result[0]['No'];
-                if (operation == 'delete') {
-                    del(data);
-                } else {
-                    ndel(operation, data);
+    function del(data) {
+        var No = data['No'];
+        var group_id = data['group_id'];
+        var sql = 'select * from buy where No=? and group_id=? and state=0;';
+        var values = [];
+        values[0] = No;
+        values[1] = group_id;
+        conn1.doQuery(
+            sql,
+            values
+        ).then(
+            (v)=>{
+                var out_trade_no = v[0]['out_trade_no'];
+                var cost = v[0]['cost'];
+                payback(out_trade_no, cost);
+                sql = 'update buy set state=-1 where out_trade_no=? and state=0;';
+                values = [];
+                values[0] = out_trade_no;
+                sql += 'delete from group_buy where group_id=?;';
+                values[1] = group_id;
+                conn1.doUpdate(
+                    sql,
+                    values
+                ).then(
+                    (v)=>{
+                        socket.emit('state', { state: '退款成功' });
+                    },
+                    (v)=>{
+                        
+                    }
+                )
+            },
+            (v)=>{
+                if(v == undefined){
+                    socket.emit('state', { state: '查询订单失败，请稍后再试' });
+                } else if(v == 0){
+                    socket.emit('state', { state: '订单不存在' });
                 }
             }
-        });
+        )
     }
-    function del(data) {
-        No = data['No'];
-        group_id = data['group_id'];
-        query_sql = 'select * from group_buy where group_id=\'' + group_id + '\' and No=' + No + ';';
-        conn.query(query_sql, (err, result) => {
-            if (err) {
-                console.log(err);
-                socket.emit('state', { state: '查询拼团信息失败，请稍后再试' });
-            } else if (result.length >= 1) {
-                query_sql = 'delete from group_buy where group_id=\'' + group_id + '\';';
-                conn.query(query_sql, (err) => {
-                    if (err) {
-                        socket.emit('state', { state: '删除拼团信息失败，请稍后再试' });
-                        console.log(err);
-                        console.log('请手动运行sql语句：' + query_sql);
-                    } else {
-                        socket.emit('state', { state: '删除拼团信息成功' });
-                    }
-                });
-            } else {
-                socket.emit('state', { state: '抱歉，您不是该拼团的团长，无权删除拼团' });
-            }
-        })
-    }
-    function ndel(operation, data) {
-        if (operation == 'create') {
-            create(data);
-        }
-        //search the group_id
-        else {
-            ncreate(operation, data);
-        }
-    }
-    function ncreate(operation, data) {
-        query_sql = "select group_id from group_buy;"
-        conn.query(query_sql, (err, result) => {
-            if (err) {
-                console.log(err);
-                query_fail_state();
-            } else if (result.length == 0) {
-                var tips = {};
-                tips['quit'] = '退出';
-                tips['join'] = '加入';
-                socket.emit('state', { state: '您所要' + tips[operation] + '的拼团不存在' });
-            } else if (operation == 'quit') {
-                quit(data);
-            } else if (operation == 'join') {
-                join(data);
-            }
-        })
-    }
+
+    /**
+     * 为指定用户退出拼团处理退款
+     * @param { No: int, group_id: string} data 退款信息
+     */
     function quit(data) {
         var No = data['No'];
         var group_id = data['group_id'];
@@ -581,47 +702,7 @@ io.on('connection', (socket) => {
             }
         );
     }
-    function create(data) {
-        No = data['No'];
-        game_id = data['game_id'];
 
-        query_sql = 'select * from join_group, group_buy where group_buy.group_id=join_group.group_id and game_id=' + game_id + ' and No=' + No + ';';
-        conn.query(query_sql, (err, result) => {
-            if (err) {
-                console.log(err);
-                query_fail_state();
-            } else if (result.length > 0) {
-                multi_join_state();
-            } else {
-                group_pay(game_id, "create");
-            }
-        });
-    }
-    function join(data) {
-        No = data['No'];
-        group_id = data['group_id'];
-        query_sql = 'select game_id from group_buy where group_id=\'' + group_id + '\';';
-        conn.query(query_sql, (err, result) => {
-            if (err) {
-                console.log(err);
-                query_fail_state();
-            } else if (result.length > 0) {
-                query_sql = 'select * from group_buy, join_group where group_buy.group_id=join_group.group_id and game_id=' + result[0]['game_id'] + ' and No=' + No + ';';
-                conn.query(query_sql, (err, result) => {
-                    if (err) {
-                        console.log(err);
-                        query_fail_state();
-                    } else if (result.length > 0) {
-                        multi_join_state();
-                    } else {
-                        group_pay(group_id, "join");
-                    }
-                });
-            } else {
-                socket.emit('state', { state: '拼团信息不存在' });
-            }
-        });
-    }
     /**
      * 提示查询拼团状态失败
      */
@@ -635,6 +716,7 @@ io.on('connection', (socket) => {
         socket.emit('state', { state: '抱歉，您已经加入该游戏的拼团，请勿重复创建或加入' });
     }
 
+    //处理搜索请求，返回模糊搜索的游戏结果
     socket.on('main_search', (data)=>{
         var search_key = data['search'];
         var real_key = '%';
@@ -662,13 +744,13 @@ io.on('connection', (socket) => {
                 socket.emit('rearch_response', { game_count: game_count.toString(), game_p: games });
             },
             (v)=>{
-                if(v == null){
+                if(v == 0){
                     socket.emit('rearch_response', { game_count: '0' });
                 }else{
                     socket.emit('state', { state: '查询失败，请稍后再试' });
                 }
             }
-        )
+        );
     });
 
     socket.on('user_require', ()=>{
@@ -750,15 +832,15 @@ io.on('connection', (socket) => {
                         )
                     },
                     (v)=>{
-
+                        socket.emit('state', { state: '获取用户信息失败，请稍后再试' });
                     }
                 )
             },
             (v)=>{
-
+                socket.emit('state', { state: '用户登录状态异常，请重新登录' });
             }
         )
-    })
+    });
 
     ////////////////////////// post服务器交互部分 //////////////////////////////////////
     socket.on('game_paid', (data) => {
