@@ -183,17 +183,29 @@ io.on('connection', (socket) => {
      * 发送一批游戏的信息
      * @param data { times(批次) }
      */
-    socket.on('games_require', (data) => {
-        var times = data['times'];//times >= 1
-        var sta = times * 8 - 8;
-        var end = times * 8;
-        var query_sql = 'select * from game_info where game_id<' + end + ' and game_id>=' + sta + ';';
-        conn.query(query_sql, (err, result) => {
-            if (err) {
-                console.log(err);
+    socket.on('store_require', (data) => {
+        var sql = 'select * from game_info;';
+        conn1.doQuery(
+            sql,
+            []
+        ).then(
+            (v)=>{
+                console.log(v);
+                //构造json
+                var game_count = v.length;
+                var game = [];
+                for (var i = 0;i < game_count;i++){
+                    game[i] = new classes.s_game(v[i]);
+                }
+                // var game_p = new classes.game_part({ game_count: game_count.toString(), game_p: games });
+                // console.log(game_p);
+                socket.emit('store_response', { game_count: game_count.toString(), game: game });
+                
+            },
+            (v)=>{
+
             }
-            socket.emit('game_receive', result);
-        });
+        )
     });
 
     /**
@@ -201,20 +213,45 @@ io.on('connection', (socket) => {
      * @param data { ad_num }
      */
     socket.on('trans_ad', (data) => {
-        var query_sql = 'select game_id from ad_info where ad_id=' + data['ad_num'] + ';';
-        conn.query(query_sql, (err, result) => {
-            if (err) {
-                console.log(err);
-            }
-            query_sql = 'select * from game_info where game_id=' + result[0]['game_id'];
-            conn.query(query_sql, (err, result) => {
-                if (err) {
-                    console.log(err);
+        var ad_id = data['ad_num'];
+        var sql = 'select game_id from ad_info where ad_id=?;';
+        var values = [];
+        values[0] = ad_id;
+        //查询广告内容
+        conn1.doQuery(
+            sql,
+            values
+        ).then(
+            (v)=>{
+                //搜索游戏信息
+                var game_id = v[0]['game_id'];
+                sql = 'select * from game_info where game_id=?;';
+                values = [];
+                values[0] = game_id;
+                conn1.doQuery(
+                    sql,
+                    values
+                ).then(
+                    (v)=>{
+                        socket.emit('ad_trans', new classes.game(v[0]));
+                    },
+                    (v)=>{
+                        if(v == 0){
+                            socket.emit('state', { state: '该游戏已下架，再看看别的游戏吧～' });
+                        } else if(v == undefined){
+                            socket.emit('state', { state: '查询游戏库失败，请稍后再试' });
+                        }
+                    }
+                );
+            },
+            (v)=>{
+                if(v == 0){
+                    socket.emit('state', { state: '该广告已下架，再看看别的游戏吧～' });
+                }else if(v == undefined){
+                    socket.emit('state', { state: '查询游戏库失败，请稍后再试' });
                 }
-                socket.emit('ad_trans', new classes.gameInfo(result[0]));
-            });
-        });
-
+            }
+        )
     });
 
     //when client is disconnected
@@ -266,27 +303,46 @@ io.on('connection', (socket) => {
             console.log(v);
             var No = v[0]['No'];
             var game_id = data['game_id'];
-            var out_trade_no = '0' + '-' + No + '-' + game_id;
-            query_sql = 'select game_name, cost from game_info where game_id=' + game_id + ';';
-            conn.query(query_sql, (err, result) => {
-                if (err) {
-                    console.log(err);
-                } else {
-                    pay(out_trade_no, result[0]['game_name'], result[0]['cost']);
+            var sql = 'select * from own where No=? and game_id=?;';
+            var values = [];
+            values[0] = No;
+            values[1] = game_id;
+            conn1.doQuery(
+                sql,
+                values
+            ).then(
+                (v)=>{
+                    socket.emit('state', { state: '您已购买该游戏，不能重复购买' });
+                },
+                (v)=>{
+                    if(v == undefined){
+                        socket.emit('state', { state: '查询游戏库失败，请稍后再试' });
+                    } else if(v == 0){
+                        var out_trade_no = '0' + '-' + No + '-' + game_id;
+                        var query_sql = 'select game_name, cost from game_info where game_id=' + game_id + ';';
+                        conn.query(query_sql, (err, result) => {
+                            if (err) {
+                                console.log(err);
+                            } else {
+                                pay(out_trade_no, result[0]['game_name'], result[0]['cost']);
+                            }
+                        });
+                    }
                 }
-            });
+            )
+
         });
     });
 
-    //创建拼团支付请求，发送一个支付链接
-    socket.on('create_group_pay', (data) => {
-        group_pay(data['game_id'], 'create');
-    });
+    // //创建拼团支付请求，发送一个支付链接
+    // socket.on('create_group_pay', (data) => {
+    //     group_pay(data['game_id'], 'create');
+    // });
 
-    //加入拼团支付请求，发送一个支付链接
-    socket.on('join_group_pay', (data) => {
-        group_pay(data['group_id'], 'join');
-    });
+    // //加入拼团支付请求，发送一个支付链接
+    // socket.on('join_group_pay', (data) => {
+    //     group_pay(data['group_id'], 'join');
+    // });
 
     /**
      * socket线程使用，拼团创建并发送支付链接
@@ -429,8 +485,8 @@ io.on('connection', (socket) => {
         });
     });
 
+    //处理创建拼团请求
     socket.on('create_group', (data) => {
-
         IsOnline(
             socket
         ).then(
@@ -505,22 +561,27 @@ io.on('connection', (socket) => {
         )
     });
 
+    //处理加入拼团请求
     socket.on('join_group', (data) => {
+        //查找在线IP对应的用户
         IsOnline(
             socket
         ).then(
+            //用户已登录
             (v)=>{
+                //查询拼团是否有效
                 var No = v[0]['No'];
                 var group_id = data['group_id'];
                 var sql = 'select * from group_buy where group_id=?;';
                 var values = [];
                 values[0] = group_id;
-                //查询拼团是否有效
                 conn1.doQuery(
                     sql,
                     values
                 ).then(
+                    //拼团有效
                     (v)=>{
+                        //验证是否重复加入同一游戏的拼团
                         var game_id = v[0]['game_id'];
                         sql = 'select * from join_group, group_buy where join_group.group_id=group_buy.group_id and No=? and game_id=?;';
                         values = [];
@@ -537,6 +598,7 @@ io.on('connection', (socket) => {
                                 if(v == undefined){
                                     socket.emit('state', { state: '查询信息失败，请稍后再试' });
                                 } else if (v == 0){
+                                    //查询是否已拥有该游戏
                                     sql = 'select * from own where No=? and game_id=?;';
                                     values = [];
                                     values[0] = No;
@@ -552,6 +614,7 @@ io.on('connection', (socket) => {
                                             if(v == undefined){
                                                 socket.emit('state', { state: '查询游戏库信息失败，请稍后再试' });
                                             } else if(v == 0){
+                                                //进行支付
                                                 group_pay(group_id, 'join');
                                             }
                                         }
@@ -614,6 +677,7 @@ io.on('connection', (socket) => {
      * @param { No: int, group_id: string} data 退款信息
      */
     function del(data) {
+        //搜索购买信息
         var No = data['No'];
         var group_id = data['group_id'];
         var sql = 'select * from buy where No=? and group_id=? and state=0;';
@@ -625,12 +689,15 @@ io.on('connection', (socket) => {
             values
         ).then(
             (v)=>{
+                //退款
                 var out_trade_no = v[0]['out_trade_no'];
                 var cost = v[0]['cost'];
                 payback(out_trade_no, cost);
+                //更新购买信息
                 sql = 'update buy set state=-1 where out_trade_no=? and state=0;';
                 values = [];
                 values[0] = out_trade_no;
+                //更新拼团信息
                 sql += 'delete from group_buy where group_id=?;';
                 values[1] = group_id;
                 conn1.doUpdate(
@@ -638,12 +705,12 @@ io.on('connection', (socket) => {
                     values
                 ).then(
                     (v)=>{
-                        socket.emit('state', { state: '退款成功' });
+                        socket.emit('state', { state: '删除拼团成功' });
                     },
                     (v)=>{
-                        
+                        socket.emit('state', { state: '删除拼团失败，请联系商家' })
                     }
-                )
+                );
             },
             (v)=>{
                 if(v == undefined){
@@ -660,9 +727,10 @@ io.on('connection', (socket) => {
      * @param { No: int, group_id: string} data 退款信息
      */
     function quit(data) {
+        //寻找活期的指定的拼团订单
         var No = data['No'];
         var group_id = data['group_id'];
-        var sql = 'select * from buy where No=? and group_id=? and state=0;';//寻找活期的指定的拼团订单
+        var sql = 'select * from buy where No=? and group_id=? and state=0;';
         var values = []
         values[0] = No;
         values[1] = (group_id);
@@ -671,17 +739,21 @@ io.on('connection', (socket) => {
             values
         ).then(
             (v) => {
+                //退款
                 var out_trade_no = v[0]['out_trade_no'];
                 var cost = v[0]['cost'];
                 payback(out_trade_no, cost);
                 //异步进行数据库更新
-                sql = 'update buy set state=-1 where out_trade_no=? and state=0;';//使订单失效
+                //使订单失效
+                sql = 'update buy set state=-1 where out_trade_no=? and state=0;';
                 values = [];
                 values[0] = (out_trade_no);
-                sql += 'delete from join_group where No=? and group_id=?;';//退出拼团
+                //退出拼团
+                sql += 'delete from join_group where No=? and group_id=?;';
                 values[1] = No;
                 values[2] = (group_id);
-                sql += 'update group_buy set user_count=user_count-1 where group_id=?;'//更新拼团人数
+                //更新拼团人数
+                sql += 'update group_buy set user_count=user_count-1 where group_id=?;';
                 values[3] = (group_id);
                 conn1.doUpdate(
                     sql,
@@ -698,22 +770,13 @@ io.on('connection', (socket) => {
                 );
 
             }, (v) => {
-
+                if(v == 0){
+                    socket.emit('state', { state: '您尚未加入该拼团' });
+                } else if(v == undefined){
+                    socket.emit('state', { state: '查询拼团信息失败，请稍后再试' });
+                }
             }
         );
-    }
-
-    /**
-     * 提示查询拼团状态失败
-     */
-    function query_fail_state() {
-        socket.emit('state', { state: '查询拼团状态失败' });
-    }
-    /**
-     * 提示重复创建或加入
-     */
-    function multi_join_state() {
-        socket.emit('state', { state: '抱歉，您已经加入该游戏的拼团，请勿重复创建或加入' });
     }
 
     //处理搜索请求，返回模糊搜索的游戏结果
@@ -733,14 +796,11 @@ io.on('connection', (socket) => {
         ).then(
             (v)=>{
                 console.log(v);
-                //构造json
                 var game_count = v.length;
                 var games = [];
                 for (var i = 0;i < game_count;i++){
                     games[i] = new classes.gamepart_info(v[i]);
                 }
-                // var game_p = new classes.game_part({ game_count: game_count.toString(), game_p: games });
-                // console.log(game_p);
                 socket.emit('rearch_response', { game_count: game_count.toString(), game_p: games });
             },
             (v)=>{
@@ -753,7 +813,9 @@ io.on('connection', (socket) => {
         );
     });
 
+    //处理用户信息搜索请求，返回用户完整信息
     socket.on('user_require', ()=>{
+        //查询IP对应的在线用户信息
         IsOnline(
             socket
         ).then(
@@ -784,6 +846,7 @@ io.on('connection', (socket) => {
                         var user_contents = v[0]['user_contents'];
                         var game_counts;
                         var games = [];
+                        //查找购买游戏、拼团游戏信息
                         sql = 'select * from buy, game_info where buy.game_id=game_info.game_id and No=? and state<>-1;';
                         values = [];
                         values[0] = No;
@@ -801,19 +864,6 @@ io.on('connection', (socket) => {
                                     }
                                     games[i] = new classes.games_info(v[i]);
                                 }
-                                var tmp = {
-                                    user_id: user_id,
-                                    user_name: user_name,
-                                    user_pict: user_pict,
-                                    user_password: user_password,
-                                    user_birth: user_birth,
-                                    user_sex: user_sex,
-                                    user_contents: user_contents,
-                                    game_counts: game_counts,
-                                    games: games
-                                }
-                                //tmp = JSON.stringify(tmp);
-                                console.log(tmp);
                                 socket.emit('user_info', {
                                     user_id: user_id, 
                                     user_name: user_name,
@@ -827,7 +877,22 @@ io.on('connection', (socket) => {
                                 });
                             },
                             (v)=>{
-                                socket.emit('state', { state: '获取用户信息失败，请稍后再试' });
+                                if(v == 0){
+                                    game_counts = 0;
+                                    socket.emit('user_info', {
+                                        user_id: user_id,
+                                        user_name: user_name,
+                                        user_pict: user_pict,
+                                        user_password: user_password,
+                                        user_birth: user_birth,
+                                        user_sex: user_sex.toString(),
+                                        user_contents: user_contents,
+                                        game_counts: game_counts,
+                                        games: games
+                                    });
+                                }else if(v == undefined){
+                                    socket.emit('state', { state: '获取用户信息失败，请稍后再试' });
+                                }
                             }
                         )
                     },
