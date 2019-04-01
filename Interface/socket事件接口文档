@@ -26,8 +26,7 @@
     public string game_id;  //游戏ID
     public string game_name;//游戏名称
     public string game_pict;//游戏图片
-    public string type_Moba;//游戏类型
-    public string type_CardAndChess;//游戏类型}
+    public string type;//游戏类型}
 8.发送登录用户的信息    user_info       { public string user_id;public string user_name;public string user_pic;public string user_pic;public string user_password; public string user_birth; public Boolean user_sex;public string user_contents; public string game_counts; public games_info[] games;}
 //public class user_information : MonoBehaviour
 {
@@ -84,10 +83,21 @@ game{
     public string publish_date;
     public string cost;
     public string group_cost;
-    public string type_Moba;
-    public string type_CardAndChess;
+    public string type;
     public string game_summary;
     }
+type '0000000000'(共十位，0表示无该标签，1表示有该标签，0-9分别是
+    免费，
+    赛车，
+    养成，
+    Moba，
+    格斗，
+    电子竞技，
+    冒险，
+    角色扮演，
+    棋牌，
+    运动
+)
 
 //客户端 emit-> 服务器
 作用    事件名                  数据
